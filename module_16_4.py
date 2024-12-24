@@ -1,55 +1,56 @@
-from fastapi import FastAPI, Path, status, Body, HTTPException
-from typing import Annotated, List
+from fastapi import FastAPI, Path, HTTPException
+from typing import List
 from pydantic import BaseModel
-
 
 app = FastAPI()
 
+# Хранилище пользователей
 users = []
 
+# Модель пользователя
 class User(BaseModel):
     id: int
     username: str
     age: int
 
 
-@app.get("/users")
-async def get_all_users() -> List[User]:
+@app.get("/users", response_model=List[User])
+async def get_all_users():
     return users
 
 
-@app.post("/user/{user_name}/{age}", response_model=str)
-async def create_user(user: User, user_name: Annotated[str, Path(min_length=5, max_length=20, description="Enter username", example="OlegV")],
-        age: int = Path(ge=18, le=120, description="Enter age", example=55)) -> str:
-    if users:
-        current_index = max(user.id for user in users) + 1
-    else:
-        current_index = 1
-    user.id = current_index
-    user.username = user_name
-    user.age = age
+@app.post("/user", response_model=str)
+async def create_user(user: User):
+    # Проверяем, существует ли пользователь с таким ID
+    if any(existing_user.id == user.id for existing_user in users):
+        raise HTTPException(status_code=400, detail="Пользователь с таким ID уже существует.")
+    
+    # Добавляем нового пользователя
     users.append(user)
-    return f"User {current_index} is registered"
+    return f"Пользователь с ID {user.id} зарегистрирован."
 
 
-@app.put("/user/{user_id}/{user_name}/{age}", response_model=str)
-async def update_user(user: User, user_name: Annotated[str, Path(min_length=5, max_length=20, description="Enter username", example="OlegV")],
-        age: int = Path(ge=18, le=120, description="Enter age", example=55),
-        user_id: int = Path(ge=0)) -> str:
+@app.put("/user/{user_id}", response_model=str)
+async def update_user(
+    user_id: int = Path(ge=0, description="ID пользователя для обновления"),
+    username: str = Path(min_length=5, max_length=20, description="Новое имя пользователя"),
+    age: int = Path(ge=18, le=120, description="Новый возраст пользователя")
+):
+    # Ищем пользователя с указанным ID
     for existing_user in users:
         if existing_user.id == user_id:
-            existing_user.username = user_name
+            existing_user.username = username
             existing_user.age = age
-            return f"The user {user_id} is updated."
+            return f"Пользователь с ID {user_id} обновлен."
+    
     raise HTTPException(status_code=404, detail="Пользователь не найден.")
 
 
-
 @app.delete("/user/{user_id}", response_model=str)
-async def delete_user(user_id: int = Path(ge=0)) -> str:
+async def delete_user(user_id: int = Path(ge=0, description="ID пользователя для удаления")):
     for index, existing_user in enumerate(users):
         if existing_user.id == user_id:
             users.pop(index)
             return f"Пользователь с ID {user_id} удален."
-
+    
     raise HTTPException(status_code=404, detail="Пользователь не найден.")
