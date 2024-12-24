@@ -14,11 +14,6 @@ class User(BaseModel):
     age: int
 
 
-@app.get("/users", response_model=List[User])
-async def get_all_users():
-    return users
-
-
 @app.post("/user", response_model=User)
 async def create_user(
     user: User,
@@ -41,14 +36,14 @@ async def create_user(
         ),
     ]
 ):
-    # Проверка уникальности ID
-    if any(existing_user.id == user.id for existing_user in users):
-        raise HTTPException(status_code=400, detail="Пользователь с таким ID уже существует.")
-    
+    # Установка корректного ID
+    new_id = max((existing_user.id for existing_user in users), default=0) + 1
+    user.id = new_id
     user.username = username
     user.age = age
     users.append(user)
     return user
+
 
 
 @app.put("/user/{user_id}", response_model=User)
